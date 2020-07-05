@@ -12,43 +12,44 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Main {
     private static final String USER_NAME = "root";
     private static final String PASSWORD = "zhang321088";
 
-    private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
-        List<String> link = new ArrayList<>();
+    private static String loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql); ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
-                link.add(resultSet.getString(1));
+                return resultSet.getString(1);
             }
         }
+        return null;
+    }
+
+    private static String getNextLinkThenDelete(Connection connection) throws SQLException {
+        String link = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
+        executeSql(connection, link, "delete from LINKS_TO_BE_PROCESSED Where link = (?)");
         return link;
     }
 
     @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
     public static void main(String[] args) throws IOException, SQLException {
         Connection connection = DriverManager.getConnection("jdbc:h2:file:/C:/Users/Administrator/Desktop/xiedaimala-crawler/news", USER_NAME, PASSWORD);
-        do {
-            List<String> linkPoor = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
-            if (!linkPoor.isEmpty()) {
-                String link = linkPoor.remove(linkPoor.size() - 1);
-                executeSql(connection, link, "delete from LINKS_TO_BE_PROCESSED Where link = (?)");
-                if (isNotProcessedAndIsInterestingLink(connection, link, "select link from LINKS_ALREADY_PROCESSED where link = (?)")) {
-                    updateDatabaseAndInsertNewsIntoDatabase(connection, link);
-                }
+        String link;
+        while ((link = getNextLinkThenDelete(connection)) != null) {
+            if (isNotProcessedAndIsInterestingLink(connection, link, "select link from LINKS_ALREADY_PROCESSED where link = (?)")) {
+                updateDatabaseAndInsertNewsIntoDatabase(connection, link);
             }
-        } while (true);
+        }
     }
 
+
     private static void updateDatabaseAndInsertNewsIntoDatabase(Connection connection, String link) throws IOException, SQLException {
+        System.out.println(link);
         Document doc = httpGetAndParseHtml(link);
         insertIntoLinkPoor(connection, doc);
-        putNewsIntoDatabase(connection, isNewsTitle(doc), "INSERT INTO news (TITLE) values (?)");
+        putNewsIntoDatabase(connection, doc, link);
         executeSql(connection, link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values (?)");
     }
 
@@ -60,17 +61,8 @@ public class Main {
     private static void insertIntoLinkPoor(Connection connection, Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
             String href = aTag.attr("href");
-            executeSql(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values (?)");
-        }
-    }
-
-    private static void putNewsIntoDatabase(Connection connection, Set<String> isNewsPage, String sql) throws SQLException {
-        if (!(isNewsPage == null)) {
-            for (String news : isNewsPage) {
-                try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                    statement.setString(1, news);
-                    statement.executeUpdate();
-                }
+            if (!href.toLowerCase().startsWith("javascript") && !href.startsWith("#")) {
+                executeSql(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values (?)");
             }
         }
     }
@@ -98,14 +90,21 @@ public class Main {
         }
     }
 
-    private static Set<String> isNewsTitle(Document doc) {
-        Set<String> news = new HashSet<>();
-        if (!doc.select("article").isEmpty()) {
-            doc.select("article").stream().map(articleTag1 -> doc.select("article").get(0).child(0).text()).forEach(System.out::println);
-            doc.select("article").stream().map(articleTag1 -> doc.select("article").get(0).child(0).text()).forEach(news::add);
-            return news;
+    private static void putNewsIntoDatabase(Connection connection, Document doc, String link) throws SQLException {
+        ArrayList<Element> articles = doc.select("article");
+        if (!articles.isEmpty()) {
+            for (Element article : articles) {
+                System.out.println(article.select("h1").get(0).text());
+                String title = articles.get(0).child(0).text();
+                String content = article.select("p").stream().map(Element::text).collect(Collectors.joining("\n"));
+                try (PreparedStatement statement = connection.prepareStatement("insert into news (url,title,content,created_at,modified_at) values (?,?,?,now(),now())")) {
+                    statement.setString(1, link);
+                    statement.setString(2, title);
+                    statement.setString(3, content);
+                    statement.executeUpdate();
+                }
+            }
         }
-        return null;
     }
 
     private static Document httpGetAndParseHtml(String link) throws IOException {
