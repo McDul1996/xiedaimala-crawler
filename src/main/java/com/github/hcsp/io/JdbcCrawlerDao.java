@@ -25,8 +25,8 @@ public class JdbcCrawlerDao implements CrawlerDao {
 
     }
 
-    public String loadUrlsFromDatabase(String sql) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement(sql); ResultSet resultSet = statement.executeQuery()) {
+    private String loadUrlsFromDatabase() throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("select link from LINKS_TO_BE_PROCESSED limit 1"); ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 return resultSet.getString(1);
             }
@@ -35,8 +35,8 @@ public class JdbcCrawlerDao implements CrawlerDao {
     }
 
     public String getNextLinkThenDelete() throws SQLException {
-        String link = loadUrlsFromDatabase("select link from LINKS_TO_BE_PROCESSED");
-        executeSql(link, "delete from LINKS_TO_BE_PROCESSED Where link = (?)");
+        String link = loadUrlsFromDatabase();
+        deleteLink(link);
         return link;
     }
 
@@ -45,6 +45,19 @@ public class JdbcCrawlerDao implements CrawlerDao {
             statement.setString(1, link);
             statement.executeUpdate();
         }
+    }
+
+    public void insertLinkToBeProcessed(String link) throws SQLException {
+        executeSql(link, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values (?)");
+    }
+
+
+    public void insertAlreadyProcessed(String link) throws SQLException {
+        executeSql(link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values (?)");
+    }
+
+    public void deleteLink(String link) throws SQLException {
+        executeSql(link, "delete from LINKS_TO_BE_PROCESSED Where link = (?)");
     }
 
     public void insertNewsIntoDatabase(String url, String title, String content) throws SQLException {
@@ -56,9 +69,9 @@ public class JdbcCrawlerDao implements CrawlerDao {
         }
     }
 
-    public boolean isAlreadyProcessed(String link, String sql) throws SQLException {
+    public boolean isAlreadyProcessed(String link) throws SQLException {
         ResultSet resultSet = null;
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement("select link from LINKS_ALREADY_PROCESSED where link = (?)")) {
             statement.setString(1, link);
             resultSet = statement.executeQuery();
             while (!resultSet.next()) {

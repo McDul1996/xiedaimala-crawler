@@ -11,12 +11,12 @@ import java.util.stream.Collectors;
 
 public class Crawler {
 
-    private CrawlerDao dao = new JdbcCrawlerDao();
+    private CrawlerDao dao = new MyBatisCrawlerDao();
 
     public void run() throws SQLException, IOException {
         String link;
         while ((link = dao.getNextLinkThenDelete()) != null) {
-            if (isNotProcessedAndIsInterestingLink(link, "select link from LINKS_ALREADY_PROCESSED where link = (?)")) {
+            if (isNotProcessedAndIsInterestingLink(link)) {
                 updateDatabaseAndInsertNewsIntoDatabase(link);
             }
         }
@@ -32,18 +32,18 @@ public class Crawler {
         Document doc = httpGetAndParseHtml(link);
         insertIntoLinkPoor(doc);
         putNewsIntoDatabase(doc, link);
-        dao.executeSql(link, "INSERT INTO LINKS_ALREADY_PROCESSED (link) values (?)");
+        dao.insertAlreadyProcessed(link);
     }
 
-    private boolean isNotProcessedAndIsInterestingLink(String link, String sql) throws SQLException {
-        return !dao.isAlreadyProcessed(link, sql) && isInterestingLink(link);
+    private boolean isNotProcessedAndIsInterestingLink(String link) throws SQLException {
+        return !dao.isAlreadyProcessed(link) && isInterestingLink(link);
     }
 
     private void insertIntoLinkPoor(Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
             String href = aTag.attr("href");
             if (!href.toLowerCase().startsWith("javascript") && !href.startsWith("#")) {
-                dao.executeSql(href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values (?)");
+                dao.insertLinkToBeProcessed(href);
             }
         }
     }
