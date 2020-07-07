@@ -24,5 +24,8 @@ hs_err_pid*
 *.iml
 target/
 .idea/
-*.db
-
+mysql-data
+news.mv.db
+news.trace.db
+*.xml
+db.migration

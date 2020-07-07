@@ -9,23 +9,27 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-public class Crawler {
+public class Crawler extends Thread {
 
-    private CrawlerDao dao = new MyBatisCrawlerDao();
+    private CrawlerDao dao;
 
-    public void run() throws SQLException, IOException {
-        String link;
-        while ((link = dao.getNextLinkThenDelete()) != null) {
-            if (isNotProcessedAndIsInterestingLink(link)) {
-                updateDatabaseAndInsertNewsIntoDatabase(link);
+    public Crawler(CrawlerDao dao) {
+        this.dao = dao;
+    }
+
+    @Override
+    public void run() {
+        try {
+            String link;
+            while ((link = dao.getNextLinkThenDelete()) != null) {
+                if (isNotProcessedAndIsInterestingLink(link)) {
+                    updateDatabaseAndInsertNewsIntoDatabase(link);
+                }
             }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
-
-    public static void main(String[] args) throws IOException, SQLException {
-        new Crawler().run();
-    }
-
 
     private void updateDatabaseAndInsertNewsIntoDatabase(String link) throws IOException, SQLException {
         System.out.println(link);
@@ -42,7 +46,7 @@ public class Crawler {
     private void insertIntoLinkPoor(Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
             String href = aTag.attr("href");
-            if (!href.toLowerCase().startsWith("javascript") && !href.startsWith("#")) {
+            if (!href.toLowerCase().startsWith("javascript") && !href.startsWith("#") && !href.isEmpty() && !href.startsWith("?")) {
                 dao.insertLinkToBeProcessed(href);
             }
         }

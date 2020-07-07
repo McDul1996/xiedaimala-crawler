@@ -89,6 +89,11 @@
             <version>1.4.200</version>
             <scope>check</scope>
         </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.20</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -150,9 +155,9 @@
                 <artifactId>flyway-maven-plugin</artifactId>
                 <version>6.5.0</version>
                 <configuration>
-                    <url>jdbc:h2:file:/C:/Users/Administrator/Desktop/xiedaimala-crawler/news</url>
+                    <url>jdbc:mysql://localhost:3306/news?characterEncoding=utf-8</url>
                     <user>root</user>
-                    <password>zhang321088</password>
+                    <password>root</password>
                     <baselineOnMigrate>true</baselineOnMigrate>
                 </configuration>
                 <dependencies>
