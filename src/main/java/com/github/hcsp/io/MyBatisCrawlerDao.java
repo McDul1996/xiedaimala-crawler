@@ -27,7 +27,7 @@ public class MyBatisCrawlerDao implements CrawlerDao {
     public synchronized String getNextLinkThenDelete() {
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
             String link = session.selectOne("com.github.hcsp.MyMapper.selectNextAvailableLink");
-            if (link != null) {
+            if ((link != null) && (!link.startsWith("%"))) {
                 session.delete("com.github.hcsp.MyMapper.deleteLink", link);
             }
             return link;
@@ -51,12 +51,14 @@ public class MyBatisCrawlerDao implements CrawlerDao {
 
     @Override
     public void insertAlreadyProcessed(String link) {
-        insertProcessed(link,"links_already_processed");
+//        insertProcessed(link,"links_already_processed");
     }
 
     @Override
     public void insertLinkToBeProcessed(String link) {
-        insertProcessed(link, "LINKS_TO_BE_PROCESSED");
+        if (!link.startsWith("%")) {
+            insertProcessed(link, "LINKS_TO_BE_PROCESSED");
+        }
     }
 
     private void insertProcessed(String link, String value) {
